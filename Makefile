@@ -3,7 +3,7 @@ CFLAGS=-Wall -Wextra
 IDIR=include
 INCLUDE=-I$(IDIR)/
 LIBS= -lSDL2
-SRCS=main.c $(IDIR)/test.c
+SRCS=main.c
 OBJS= $(SRCS:.c=.o)
 MAIN = breakout
 
