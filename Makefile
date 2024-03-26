@@ -1,8 +1,9 @@
 CC=gcc
 CFLAGS=-Wall -Wextra
-INCLUDE=-Iinclude/
+IDIR=include
+INCLUDE=-I$(IDIR)/
 LIBS= -lSDL2
-SRCS=main.c
+SRCS=main.c $(IDIR)/test.c
 OBJS= $(SRCS:.c=.o)
 MAIN = breakout
 
@@ -13,4 +14,4 @@ $(MAIN): $(OBJS)
 	$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@
 
 clean:
-	$(RM) *.o *~ $(MAIN)
+	$(RM) *.o include/*.o *~ $(MAIN)
