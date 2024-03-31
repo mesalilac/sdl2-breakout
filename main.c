@@ -2,8 +2,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define WIDTH 800;
-#define HEIGHT 600;
+#define WIDTH 800
+#define HEIGHT 600
 
 typedef enum
 {
