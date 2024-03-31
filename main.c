@@ -1,6 +1,8 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 #define WIDTH 800
@@ -10,6 +12,8 @@
 
 #define PADDLE_WIDTH 200
 #define PADDLE_HEIGHT BALL_SIZE
+
+#define FONT_NAME "./FiraCode-Regular.ttf"
 
 typedef enum
 {
@@ -27,23 +31,46 @@ typedef struct
 typedef struct
 {
     SDL_Rect rect;
+    int speed;
     int xVelocity;
     int yVelocity;
+    bool dead;
 } Ball;
 
-Ball ball_new()
+Ball *ball_new(int x, int y)
 {
-    Ball ball = {.rect =
-                     {
-                         .x = WIDTH / 2 - PADDLE_WIDTH / 2,
-                         .y = HEIGHT - PADDLE_HEIGHT - 100,
-                         .w = BALL_SIZE,
-                         .h = BALL_SIZE,
-                     },
-                 .xVelocity = 1,
-                 .yVelocity = -1};
+    Ball *ball = (Ball *)malloc(sizeof(Ball));
+    SDL_Rect rect = {
+        .x = x,
+        .y = y,
+        .w = BALL_SIZE,
+        .h = BALL_SIZE,
+    };
+    ball->rect = rect;
+
+    ball->speed = 4;
+    ball->xVelocity = 1;
+    ball->yVelocity = -1;
 
     return ball;
+}
+
+void ball_update_position(Ball *ball)
+{
+    if (ball->rect.x < 0)
+        ball->xVelocity = 1;
+    if (ball->rect.x + ball->rect.w > WIDTH)
+        ball->xVelocity = -1;
+    if (ball->rect.y < 0)
+        ball->yVelocity = 1;
+    if (ball->rect.y + ball->rect.h > HEIGHT)
+    {
+        ball->dead = true;
+        return;
+    }
+
+    ball->rect.x += ball->xVelocity * ball->speed;
+    ball->rect.y += ball->yVelocity * ball->speed;
 }
 
 void ball_render(SDL_Renderer *ren, Ball *ball)
@@ -73,9 +100,96 @@ void paddle_render(SDL_Renderer *ren, Paddle *paddle)
     SDL_RenderFillRect(ren, &paddle->rect);
 }
 
+void ball_check_paddle_intersection(Ball *ball, Paddle *paddle)
+{
+    if (SDL_HasIntersection(&ball->rect, &paddle->rect))
+    {
+        if (ball->rect.x <= paddle->rect.x)
+            ball->xVelocity = -1;
+        if (ball->rect.x >= paddle->rect.x + paddle->rect.w)
+            ball->xVelocity = 1;
+        if (ball->rect.y <= paddle->rect.y)
+            ball->yVelocity = -1;
+    }
+}
+
+void render_score(SDL_Renderer *ren, int score)
+{
+    TTF_Font *tip_font = TTF_OpenFont(FONT_NAME, 18);
+    SDL_Color color = {255, 255, 255, 255};
+    char *text = malloc(50 * sizeof(char));
+    sprintf(text, "score: %i", score);
+
+    SDL_Surface *surface = TTF_RenderText_Solid(tip_font, text, color);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
+    SDL_Rect title_rect = {
+        .x = 0,
+        .y = HEIGHT - surface->h,
+        .w = surface->w,
+        .h = surface->h,
+    };
+    SDL_RenderCopy(ren, texture, NULL, &title_rect);
+    SDL_SetRenderDrawColor(ren, 20, 20, 20, 255);
+    SDL_RenderDrawRect(ren, &title_rect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+
+    TTF_CloseFont(tip_font);
+}
+
+void render_screen_tip(SDL_Renderer *ren, char *text)
+{
+    TTF_Font *tip_font = TTF_OpenFont(FONT_NAME, 18);
+    SDL_Color color = {255, 255, 255, 255};
+
+    SDL_Surface *surface = TTF_RenderText_Solid(tip_font, text, color);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
+    SDL_Rect title_rect = {
+        .x = WIDTH / 2 - surface->w / 2,
+        .y = HEIGHT - 50,
+        .w = surface->w,
+        .h = surface->h,
+    };
+    SDL_RenderCopy(ren, texture, NULL, &title_rect);
+    SDL_SetRenderDrawColor(ren, 20, 20, 20, 255);
+    SDL_RenderDrawRect(ren, &title_rect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+
+    TTF_CloseFont(tip_font);
+}
+
+void render_title(SDL_Renderer *ren, char *text)
+{
+    TTF_Font *title_font = TTF_OpenFont(FONT_NAME, 28);
+
+    SDL_Color color = {255, 255, 255, 255};
+    SDL_Surface *surface = TTF_RenderText_Solid(title_font, text, color);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
+    SDL_Rect rect = {
+        .x = WIDTH / 2 - surface->w / 2,
+        .y = 100,
+        .w = surface->w,
+        .h = surface->h,
+    };
+    SDL_RenderCopy(ren, texture, NULL, &rect);
+    SDL_SetRenderDrawColor(ren, 20, 20, 20, 255);
+    SDL_RenderDrawRect(ren, &rect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+
+    TTF_CloseFont(title_font);
+}
+
 int main()
 {
     srand(time(0));
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+        fprintf(stderr, "ERROR: Failed to init SDL: %s", SDL_GetError());
+        exit(1);
+    }
 
     SDL_Window *win = SDL_CreateWindow("Breakout", 0, 0, WIDTH, HEIGHT, 0);
     if (win == NULL)
@@ -90,15 +204,26 @@ int main()
         exit(1);
     }
 
+    if (TTF_Init() < 0)
+    {
+        fprintf(stderr, "ERROR: Failed to init TTF: %s", SDL_GetError());
+        exit(1);
+    }
+
     SDL_Event event;
     bool isRunning = true;
     GameState gameState = PLAYING;
     int score = 0;
     Keys keys = {false};
     int paddleSpeed = 5;
-    int ballSpeed = 4;
     Paddle paddle = paddle_new();
-    Ball ball = ball_new();
+    Ball *balls[1000];
+    int balls_count = 0;
+
+    balls[balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
+    ++balls_count;
+    balls[balls_count] = ball_new(200, 200);
+    ++balls_count;
 
     while (isRunning)
     {
@@ -114,6 +239,17 @@ int main()
                     keys.left = true;
                 if (event.key.keysym.sym == 'd')
                     keys.right = true;
+                if (event.key.keysym.sym == ' ' && (gameState == GAMEOVER || gameState == WIN))
+                {
+                    paddle = paddle_new();
+                    score = 0;
+                    balls_count = 0;
+                    balls[balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
+                    ++balls_count;
+                    balls[balls_count] = ball_new(200, 200);
+                    ++balls_count;
+                    gameState = PLAYING;
+                }
                 break;
             case SDL_KEYUP:
                 if (event.key.keysym.sym == 'a')
@@ -127,6 +263,8 @@ int main()
         SDL_SetRenderDrawColor(ren, 18, 18, 18, 255);
         SDL_RenderClear(ren);
 
+        render_score(ren, score);
+
         switch (gameState)
         {
         case PLAYING:
@@ -135,24 +273,36 @@ int main()
             if (keys.right)
                 paddle.rect.x += paddleSpeed;
 
-            if (ball.rect.x < 0)
-                ball.xVelocity = 1;
-            if (ball.rect.x + ball.rect.w > WIDTH)
-                ball.xVelocity = -1;
-            if (ball.rect.y < 0)
-                ball.yVelocity = 1;
-            if (ball.rect.y + ball.rect.h > HEIGHT)
-                ball.yVelocity = -1;
-
-            ball.rect.x += ball.xVelocity * ballSpeed;
-            ball.rect.y += ball.yVelocity * ballSpeed;
-
             paddle_render(ren, &paddle);
-            ball_render(ren, &ball);
+
+            int dead_balls_count = 0;
+            for (int i = 0; i < balls_count; ++i)
+            {
+                Ball *ball = balls[i];
+                if (ball->dead == false)
+                {
+                    ball_check_paddle_intersection(balls[i], &paddle);
+                    ball_update_position(balls[i]);
+                    ball_render(ren, balls[i]);
+                }
+                else if (ball->dead == true)
+                {
+                    ++dead_balls_count;
+                }
+            }
+            if (dead_balls_count == balls_count)
+                gameState = GAMEOVER;
+
+            {
+            }
             break;
         case GAMEOVER:
+            render_title(ren, "GAMEOVER");
+            render_screen_tip(ren, "Press the space bar to restart the game!");
             break;
         case WIN:
+            render_title(ren, "YOU WON");
+            render_screen_tip(ren, "Press the space bar to restart the game!");
             break;
         }
 
