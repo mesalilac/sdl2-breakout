@@ -441,8 +441,12 @@ int main()
                                 ball->yVelocity = -1;
 
                             block->lifes -= 1;
+
                             if (block->lifes == 0)
+                            {
                                 block->dead = true;
+                                ++score;
+                            }
                         }
                     }
                 }
