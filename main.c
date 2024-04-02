@@ -43,12 +43,24 @@ typedef struct
 
 typedef struct
 {
+    Block **list;
+    int count;
+} BlocksList;
+
+typedef struct
+{
     SDL_Rect rect;
     int speed;
     int xVelocity;
     int yVelocity;
     bool dead;
 } Ball;
+
+typedef struct
+{
+    Ball **list;
+    int count;
+} BallsList;
 
 Ball *ball_new(int x, int y)
 {
@@ -68,7 +80,7 @@ Ball *ball_new(int x, int y)
     return ball;
 }
 
-void ball_update_position(Ball *ball, int *lifes, GameState *gameState, Ball **balls, int *balls_count)
+void ball_update_position(Ball *ball, int *lifes, GameState *gameState, BallsList *balls_list)
 {
     if (ball->rect.x < 0)
         ball->xVelocity = 1;
@@ -86,8 +98,8 @@ void ball_update_position(Ball *ball, int *lifes, GameState *gameState, Ball **b
         }
         else
         {
-            balls[*balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
-            *balls_count += 1;
+            balls_list->list[balls_list->count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
+            balls_list->count += 1;
         }
         return;
     }
@@ -136,7 +148,7 @@ void ball_check_paddle_intersection(Ball *ball, Paddle *paddle)
     }
 }
 
-void generate_blocks(Block **blocks, int *blocks_count, int row_n, int col_n)
+void generate_blocks(BlocksList *blocks_list, int row_n, int col_n)
 {
     int margin = 60;
     int padding = 20;
@@ -185,20 +197,20 @@ void generate_blocks(Block **blocks, int *blocks_count, int row_n, int col_n)
 
             block->color = color;
 
-            blocks[*blocks_count] = block;
-            *blocks_count += 1;
+            blocks_list->list[blocks_list->count] = block;
+            blocks_list->count += 1;
         };
 
         y += BLOCK_HEIGHT + padding;
     }
 }
 
-void blocks_render(SDL_Renderer *ren, Block **blocks, int blocks_count)
+void blocks_render(SDL_Renderer *ren, BlocksList *blocks_list)
 {
 
-    for (int i = 0; i < blocks_count; ++i)
+    for (int i = 0; i < blocks_list->count; ++i)
     {
-        Block *block = blocks[i];
+        Block *block = blocks_list->list[i];
         if (block->dead == true)
             continue;
 
@@ -299,20 +311,20 @@ void render_title(SDL_Renderer *ren, char *text)
     TTF_CloseFont(title_font);
 }
 
-void init_game(GameState *gameState, int *score, int *lifes, Paddle *paddle, Block **blocks, int *blocks_count,
-               Ball **balls, int *balls_count)
+void init_game(GameState *gameState, int *score, int *lifes, Paddle *paddle, BlocksList *blocks_list,
+               BallsList *balls_list)
 {
     *gameState = PLAYING;
     *score = 0;
     *lifes = MAX_LIFES;
     *paddle = paddle_new();
-    *blocks_count = 0;
-    *balls_count = 0;
+    blocks_list->count = 0;
+    balls_list->count = 0;
 
-    balls[0] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
-    *balls_count += 1;
+    balls_list->list[0] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
+    balls_list->count += 1;
 
-    generate_blocks(blocks, blocks_count, 3, 7);
+    generate_blocks(blocks_list, 3, 7);
 }
 
 int main()
@@ -353,12 +365,10 @@ int main()
     int score;
     int lifes;
     Paddle paddle = {};
-    Block **blocks = malloc(100 * sizeof(Block));
-    int blocks_count;
-    Ball **balls = malloc(100 * sizeof(Ball));
-    int balls_count;
+    BlocksList blocks_list = {.list = malloc(100 * sizeof(Block)), .count = 0};
+    BallsList balls_list = {.list = malloc(100 * sizeof(Ball)), .count = 0};
 
-    init_game(&gameState, &score, &lifes, &paddle, blocks, &blocks_count, balls, &balls_count);
+    init_game(&gameState, &score, &lifes, &paddle, &blocks_list, &balls_list);
 
     while (isRunning)
     {
@@ -375,7 +385,7 @@ int main()
                 if (event.key.keysym.sym == 'd')
                     keys.right = true;
                 if (event.key.keysym.sym == ' ' && (gameState == GAMEOVER || gameState == WIN))
-                    init_game(&gameState, &score, &lifes, &paddle, blocks, &blocks_count, balls, &balls_count);
+                    init_game(&gameState, &score, &lifes, &paddle, &blocks_list, &balls_list);
                 break;
             case SDL_KEYUP:
                 if (event.key.keysym.sym == 'a')
@@ -403,18 +413,18 @@ int main()
             paddle_render(ren, &paddle);
 
             int dead_balls_count = 0;
-            for (int i = 0; i < balls_count; ++i)
+            for (int i = 0; i < balls_list.count; ++i)
             {
-                Ball *ball = balls[i];
+                Ball *ball = balls_list.list[i];
                 if (ball->dead == false)
                 {
-                    ball_check_paddle_intersection(balls[i], &paddle);
-                    ball_update_position(balls[i], &lifes, &gameState, balls, &balls_count);
-                    ball_render(ren, balls[i]);
+                    ball_check_paddle_intersection(ball, &paddle);
+                    ball_update_position(ball, &lifes, &gameState, &balls_list);
+                    ball_render(ren, ball);
 
-                    for (int j = 0; j < blocks_count; ++j)
+                    for (int j = 0; j < blocks_list.count; ++j)
                     {
-                        Block *block = blocks[j];
+                        Block *block = blocks_list.list[j];
                         if (block->dead == true)
                             continue;
 
@@ -441,10 +451,10 @@ int main()
                     ++dead_balls_count;
                 }
             }
-            if (dead_balls_count == balls_count || lifes == 0)
+            if (dead_balls_count == balls_list.count || lifes == 0)
                 gameState = GAMEOVER;
 
-            blocks_render(ren, blocks, blocks_count);
+            blocks_render(ren, &blocks_list);
             break;
         case GAMEOVER:
             render_title(ren, "GAMEOVER");
