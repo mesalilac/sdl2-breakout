@@ -8,6 +8,8 @@
 #define WIDTH 800
 #define HEIGHT 600
 
+#define MAX_LIFES 3
+
 #define BALL_SIZE 15
 
 #define PADDLE_WIDTH 200
@@ -66,7 +68,7 @@ Ball *ball_new(int x, int y)
     return ball;
 }
 
-void ball_update_position(Ball *ball)
+void ball_update_position(Ball *ball, int *lifes, GameState *gameState, Ball **balls, int *balls_count)
 {
     if (ball->rect.x < 0)
         ball->xVelocity = 1;
@@ -76,7 +78,17 @@ void ball_update_position(Ball *ball)
         ball->yVelocity = 1;
     if (ball->rect.y + ball->rect.h > HEIGHT)
     {
+        *lifes -= 1;
         ball->dead = true;
+        if (*lifes == 0)
+        {
+            *gameState = GAMEOVER;
+        }
+        else
+        {
+            balls[*balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
+            *balls_count += 1;
+        }
         return;
     }
 
@@ -219,6 +231,30 @@ void render_score(SDL_Renderer *ren, int score)
     TTF_CloseFont(tip_font);
 }
 
+void render_lifes(SDL_Renderer *ren, int lifes)
+{
+    TTF_Font *tip_font = TTF_OpenFont(FONT_NAME, 18);
+    SDL_Color color = {255, 255, 255, 255};
+    char *text = malloc(50 * sizeof(char));
+    sprintf(text, "lifes: %i", lifes);
+
+    SDL_Surface *surface = TTF_RenderText_Solid(tip_font, text, color);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
+    SDL_Rect title_rect = {
+        .x = WIDTH - surface->w,
+        .y = HEIGHT - surface->h,
+        .w = surface->w,
+        .h = surface->h,
+    };
+    SDL_RenderCopy(ren, texture, NULL, &title_rect);
+    SDL_SetRenderDrawColor(ren, 20, 20, 20, 255);
+    SDL_RenderDrawRect(ren, &title_rect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+
+    TTF_CloseFont(tip_font);
+}
+
 void render_screen_tip(SDL_Renderer *ren, char *text)
 {
     TTF_Font *tip_font = TTF_OpenFont(FONT_NAME, 18);
@@ -263,6 +299,22 @@ void render_title(SDL_Renderer *ren, char *text)
     TTF_CloseFont(title_font);
 }
 
+void init_game(GameState *gameState, int *score, int *lifes, Paddle *paddle, Block **blocks, int *blocks_count,
+               Ball **balls, int *balls_count)
+{
+    *gameState = PLAYING;
+    *score = 0;
+    *lifes = MAX_LIFES;
+    *paddle = paddle_new();
+    *blocks_count = 0;
+    *balls_count = 0;
+
+    balls[0] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
+    *balls_count += 1;
+
+    generate_blocks(blocks, blocks_count, 3, 7);
+}
+
 int main()
 {
     srand(time(0));
@@ -294,21 +346,19 @@ int main()
 
     SDL_Event event;
     bool isRunning = true;
-    GameState gameState = PLAYING;
-    int score = 0;
     Keys keys = {false};
     int paddleSpeed = 5;
-    Paddle paddle = paddle_new();
+
+    GameState gameState;
+    int score;
+    int lifes;
+    Paddle paddle = {};
     Block **blocks = malloc(100 * sizeof(Block));
-    int blocks_count = 0;
+    int blocks_count;
+    Ball **balls = malloc(100 * sizeof(Ball));
+    int balls_count;
 
-    Ball *balls[1000];
-    int balls_count = 0;
-
-    balls[balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
-    ++balls_count;
-
-    generate_blocks(blocks, &blocks_count, 3, 7);
+    init_game(&gameState, &score, &lifes, &paddle, blocks, &blocks_count, balls, &balls_count);
 
     while (isRunning)
     {
@@ -325,14 +375,7 @@ int main()
                 if (event.key.keysym.sym == 'd')
                     keys.right = true;
                 if (event.key.keysym.sym == ' ' && (gameState == GAMEOVER || gameState == WIN))
-                {
-                    paddle = paddle_new();
-                    score = 0;
-                    balls_count = 0;
-                    balls[balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
-                    ++balls_count;
-                    gameState = PLAYING;
-                }
+                    init_game(&gameState, &score, &lifes, &paddle, blocks, &blocks_count, balls, &balls_count);
                 break;
             case SDL_KEYUP:
                 if (event.key.keysym.sym == 'a')
@@ -347,6 +390,7 @@ int main()
         SDL_RenderClear(ren);
 
         render_score(ren, score);
+        render_lifes(ren, lifes);
 
         switch (gameState)
         {
@@ -365,7 +409,7 @@ int main()
                 if (ball->dead == false)
                 {
                     ball_check_paddle_intersection(balls[i], &paddle);
-                    ball_update_position(balls[i]);
+                    ball_update_position(balls[i], &lifes, &gameState, balls, &balls_count);
                     ball_render(ren, balls[i]);
 
                     for (int j = 0; j < blocks_count; ++j)
@@ -397,7 +441,7 @@ int main()
                     ++dead_balls_count;
                 }
             }
-            if (dead_balls_count == balls_count)
+            if (dead_balls_count == balls_count || lifes == 0)
                 gameState = GAMEOVER;
 
             blocks_render(ren, blocks, blocks_count);
