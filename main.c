@@ -8,10 +8,13 @@
 #define WIDTH 800
 #define HEIGHT 600
 
-#define BALL_SIZE 30
+#define BALL_SIZE 15
 
 #define PADDLE_WIDTH 200
 #define PADDLE_HEIGHT BALL_SIZE
+
+#define BLOCK_WIDTH 80
+#define BLOCK_HEIGHT 30
 
 #define FONT_NAME "./FiraCode-Regular.ttf"
 
@@ -27,6 +30,14 @@ typedef struct
     bool right;
     bool left;
 } Keys;
+
+typedef struct
+{
+    SDL_Rect rect;
+    int lifes;
+    bool dead;
+    SDL_Color color;
+} Block;
 
 typedef struct
 {
@@ -110,6 +121,77 @@ void ball_check_paddle_intersection(Ball *ball, Paddle *paddle)
             ball->xVelocity = 1;
         if (ball->rect.y <= paddle->rect.y)
             ball->yVelocity = -1;
+    }
+}
+
+void generate_blocks(Block **blocks, int *blocks_count, int row_n, int col_n)
+{
+    int margin = 60;
+    int padding = 20;
+    int y = BLOCK_HEIGHT + padding;
+
+    for (int i = 0; i < row_n; ++i)
+    {
+        for (int j = 0; j < col_n; ++j)
+        {
+            Block *block = (Block *)malloc(sizeof(Block));
+            SDL_Rect rect = {.x = margin + j * (BLOCK_WIDTH + padding), .y = y, .w = BLOCK_WIDTH, .h = BLOCK_HEIGHT};
+            block->rect = rect;
+            block->dead = false;
+            block->lifes = (rand() % (5 - 1)) + 1;
+
+            SDL_Color color = {255, 255, 255, 255};
+
+            switch (block->lifes)
+            {
+            case 1:
+                color.r = 85;
+                color.g = 183;
+                color.b = 21;
+                break;
+            case 2:
+                color.r = 115;
+                color.g = 183;
+                color.b = 21;
+                break;
+            case 3:
+                color.r = 183;
+                color.g = 182;
+                color.b = 21;
+                break;
+            case 4:
+                color.r = 183;
+                color.g = 118;
+                color.b = 21;
+                break;
+            case 5:
+                color.r = 183;
+                color.g = 50;
+                color.b = 21;
+                break;
+            }
+
+            block->color = color;
+
+            blocks[*blocks_count] = block;
+            *blocks_count += 1;
+        };
+
+        y += BLOCK_HEIGHT + padding;
+    }
+}
+
+void blocks_render(SDL_Renderer *ren, Block **blocks, int blocks_count)
+{
+
+    for (int i = 0; i < blocks_count; ++i)
+    {
+        Block *block = blocks[i];
+        if (block->dead == true)
+            continue;
+
+        SDL_SetRenderDrawColor(ren, block->color.r, block->color.g, block->color.b, block->color.a);
+        SDL_RenderFillRect(ren, &block->rect);
     }
 }
 
@@ -217,13 +299,16 @@ int main()
     Keys keys = {false};
     int paddleSpeed = 5;
     Paddle paddle = paddle_new();
+    Block **blocks = malloc(100 * sizeof(Block));
+    int blocks_count = 0;
+
     Ball *balls[1000];
     int balls_count = 0;
 
     balls[balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
     ++balls_count;
-    balls[balls_count] = ball_new(200, 200);
-    ++balls_count;
+
+    generate_blocks(blocks, &blocks_count, 3, 7);
 
     while (isRunning)
     {
@@ -245,8 +330,6 @@ int main()
                     score = 0;
                     balls_count = 0;
                     balls[balls_count] = ball_new(WIDTH / 2 - PADDLE_WIDTH / 2, HEIGHT - PADDLE_HEIGHT - 100);
-                    ++balls_count;
-                    balls[balls_count] = ball_new(200, 200);
                     ++balls_count;
                     gameState = PLAYING;
                 }
@@ -284,6 +367,30 @@ int main()
                     ball_check_paddle_intersection(balls[i], &paddle);
                     ball_update_position(balls[i]);
                     ball_render(ren, balls[i]);
+
+                    for (int j = 0; j < blocks_count; ++j)
+                    {
+                        Block *block = blocks[j];
+                        if (block->dead == true)
+                            continue;
+
+                        if (SDL_HasIntersection(&ball->rect, &block->rect))
+                        {
+                            if (ball->rect.x > block->rect.x + block->rect.w)
+                                ball->xVelocity = 1;
+                            if (ball->rect.x + ball->rect.w < block->rect.x)
+                                ball->xVelocity = -1;
+
+                            if (ball->rect.y > block->rect.y)
+                                ball->yVelocity = 1;
+                            if (ball->rect.y < block->rect.y)
+                                ball->yVelocity = -1;
+
+                            block->lifes -= 1;
+                            if (block->lifes == 0)
+                                block->dead = true;
+                        }
+                    }
                 }
                 else if (ball->dead == true)
                 {
@@ -293,8 +400,7 @@ int main()
             if (dead_balls_count == balls_count)
                 gameState = GAMEOVER;
 
-            {
-            }
+            blocks_render(ren, blocks, blocks_count);
             break;
         case GAMEOVER:
             render_title(ren, "GAMEOVER");
