@@ -20,6 +20,11 @@
 
 #define FONT_NAME "./FiraCode-Regular.ttf"
 
+int random_velocity()
+{
+    return (rand() % 2 == 0) ? -1 : 1;
+}
+
 typedef enum
 {
     PLAYING,
@@ -74,8 +79,8 @@ Ball *ball_new(int x, int y)
     ball->rect = rect;
 
     ball->speed = 4;
-    ball->xVelocity = 1;
-    ball->yVelocity = -1;
+    ball->xVelocity = random_velocity();
+    ball->yVelocity = random_velocity();
 
     return ball;
 }
@@ -329,7 +334,7 @@ void init_game(GameState *gameState, int *score, int *lifes, Paddle *paddle, Blo
 
 int main()
 {
-    srand(time(0));
+    srand(time(NULL));
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
