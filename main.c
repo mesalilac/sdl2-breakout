@@ -38,12 +38,19 @@ typedef struct
     bool left;
 } Keys;
 
+typedef enum
+{
+    NORMAL,
+    SPAWN_BALLS,
+} BlockType;
+
 typedef struct
 {
     SDL_Rect rect;
     int lifes;
     bool dead;
     SDL_Color color;
+    BlockType type;
 } Block;
 
 typedef struct
@@ -95,8 +102,20 @@ void ball_update_position(Ball *ball, int *lifes, GameState *gameState, BallsLis
         ball->yVelocity = 1;
     if (ball->rect.y + ball->rect.h > HEIGHT)
     {
-        *lifes -= 1;
         ball->dead = true;
+
+        bool all_dead = true;
+        for (int i = 0; i < balls_list->count; ++i)
+        {
+            Ball *ball = balls_list->list[i];
+
+            if (!ball->dead)
+                all_dead = false;
+        }
+
+        if (all_dead)
+            *lifes -= 1;
+
         if (*lifes == 0)
         {
             *gameState = GAMEOVER;
@@ -168,6 +187,12 @@ void generate_blocks(BlocksList *blocks_list, int row_n, int col_n)
             block->rect = rect;
             block->dead = false;
             block->lifes = (rand() % (5 - 1)) + 1;
+            block->type = NORMAL;
+
+            int random_num = rand() % (10 - 1) + 1;
+
+            if (random_num == 5)
+                block->type = SPAWN_BALLS;
 
             SDL_Color color = {255, 255, 255, 255};
 
@@ -451,6 +476,22 @@ int main()
                             {
                                 block->dead = true;
                                 ++score;
+                                switch (block->type)
+                                {
+                                case NORMAL:
+                                    break;
+                                case SPAWN_BALLS: {
+                                    int balls_n = rand() % (3 - 1) + 1;
+
+                                    for (int x = 0; x < balls_n; ++x)
+                                    {
+                                        balls_list.list[balls_list.count] = ball_new(block->rect.x, block->rect.y);
+                                        balls_list.count += 1;
+                                    }
+                                }
+
+                                break;
+                                }
                             }
                         }
                     }
